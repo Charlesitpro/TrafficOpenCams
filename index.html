@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Public Camera Feed</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            height: 100vh; /* Make map cover the entire viewport height */
+            width: 100vw; /* Make map cover the entire viewport width */
+        }
+        .modal-dialog {
+            width: 80vw; /* Default width */
+            height: 80vh; /* Default height */
+            max-width: 90vw;
+            max-height: 90vh;
+        }
+        .modal-content {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        .modal-header {
+            background-color: #007bff; /* Distinct header color */
+            color: white;
+            cursor: move; /* Indicates draggable area */
+        }
+        .modal-body {
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        iframe#videoFrame {
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+        .user-location-icon {
+            background-color: #ff7800;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            border: 2px solid #000;
+        }
+        .location-toggle-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <button id="locationToggle" class="btn btn-primary location-toggle-btn">Enable Location</button>
+    <div id="map"></div>
+
+    <!-- Modal for Video Feed -->
+    <div class="modal fade" id="videoModal" tabindex="-1" role="dialog" aria-labelledby="videoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="videoModalLabel">Video Feed</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <iframe id="videoFrame" allowfullscreen></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        // Initialize map
+        var map = L.map('map').setView([39.3, -77.4], 10); // Center the map at a default location
+
+        // Add tile layer to map
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        var userLocationMarker = null; // Store reference to the user location marker
+
+        // Define the onMarkerClick function globally
+        window.onMarkerClick = function(videoURL) {
+            document.getElementById('videoFrame').src = videoURL;
+            $('#videoModal').modal('show');
+            $('#videoModal').on('shown.bs.modal', function () {
+                adjustModalSize();
+            });
+        }
+
+        // Function to adjust modal size based on iframe content
+        function adjustModalSize() {
+            var modalContent = document.querySelector('.modal-content');
+            var iframe = document.getElementById('videoFrame');
+            
+            iframe.onload = function() {
+                // Set modal size to fit iframe content
+                var iframeWidth = iframe.contentWindow.document.body.scrollWidth;
+                var iframeHeight = iframe.contentWindow.document.body.scrollHeight;
+
+                var newWidth = Math.min(window.innerWidth * 0.8, iframeWidth + 20); // 20px padding
+                var newHeight = Math.min(window.innerHeight * 0.8, iframeHeight + 40); // 40px padding
+
+                $('.modal-dialog').css({
+                    width: newWidth + 'px',
+                    height: newHeight + 'px'
+                });
+            };
+        }
+
+        // Function to add a user location marker
+        function addUserLocationMarker(lat, lon) {
+            if (userLocationMarker) {
+                map.removeLayer(userLocationMarker); // Remove existing marker if it exists
+            }
+            var userLocationIcon = L.divIcon({
+                className: 'user-location-icon'
+            });
+            userLocationMarker = L.marker([lat, lon], { icon: userLocationIcon }).addTo(map)
+                .bindPopup('You are here');
+        }
+
+        // Function to get user location
+        function getUserLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    var lat = position.coords.latitude;
+                    var lon = position.coords.longitude;
+                    map.setView([lat, lon], 14); // Center the map on the user's location
+                    addUserLocationMarker(lat, lon);
+                    localStorage.setItem('locationAllowed', 'true'); // Save preference
+                }, function(error) {
+                    console.error('Error getting location:', error);
+                    alert('Location access is required to use this feature. Please enable location access in your browser settings.');
+                });
+            } else {
+                console.error('Geolocation is not supported by this browser.');
+                alert('Geolocation is not supported by this browser.');
+            }
+        }
+		
+		// Handle location settings redirection based on platform
+        function redirectToSettings() {
+            var userAgent = navigator.userAgent || navigator.vendor || window.opera;
+
+            if (/android/i.test(userAgent)) {
+                alert('Please enable location services by going to Settings > Location on your Android device.');
+            } else if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+                alert('Please enable location services by going to Settings > Privacy > Location Services on your iOS device.');
+            } else {
+                alert('Please enable location services in your browser settings.');
+            }
+        }
+
+        // Toggle location access
+        document.getElementById('locationToggle').addEventListener('click', function() {
+            if (this.textContent === 'Enable Location') {
+                this.textContent = 'Disable Location';
+                getUserLocation();
+            } else {
+                this.textContent = 'Enable Location';
+                if (userLocationMarker) {
+                    map.removeLayer(userLocationMarker);
+                    userLocationMarker = null;
+                }
+            }
+        });
+
+        // Fetch XML data
+        fetch('data.xml')
+            .then(response => response.text())
+            .then(data => {
+                var parser = new DOMParser();
+                var xmlDoc = parser.parseFromString(data, 'text/xml');
+                var videos = xmlDoc.getElementsByTagName('Video');
+
+                for (var i = 0; i < videos.length; i++) {
+                    var lat = parseFloat(videos[i].getElementsByTagName('lat')[0].textContent);
+                    var lon = parseFloat(videos[i].getElementsByTagName('lon')[0].textContent);
+                    var videoURL = videos[i].getElementsByTagName('publicVideoURL')[0].textContent;
+                    var description = videos[i].getElementsByTagName('description')[0].textContent;
+
+                    var marker = L.marker([lat, lon]).addTo(map);
+                    marker.bindPopup('<b>' + description + '</b><br><button onclick="onMarkerClick(\'' + videoURL + '\')">View Live Feed</button>');
+                }
+            })
+            .catch(error => console.error('Error fetching XML data:', error));
+
+        // Make modal draggable
+        $(document).ready(function() {
+            $('.modal-dialog')({
+                handle: '.modal-header'
+            });
+        });
+    </script>
+</body>
+</html>
