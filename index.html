@@ -1,78 +1,62 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Open Public Camera Feed</title>
+  <meta charset="UTF-8">
+  <title>Traffic Cameras Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- ✅ Correct Leaflet CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p+nA+e4FwU5Mzdg3NofM8JrIoVNewc19hXtF6G+zV6M=" crossorigin="anonymous" />
-
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
-
-    <style>
-        html, body, #map {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-        .location-toggle-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 1000;
-        }
-    </style>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+    iframe {
+      width: 320px;
+      height: 240px;
+      border: none;
+    }
+  </style>
 </head>
-
 <body>
-    <button id="locationToggle" class="btn btn-primary location-toggle-btn">Enable Location</button>
-    <div id="map"></div>
+  <div id="map"></div>
 
-    <!-- ✅ Leaflet JS (before custom script) -->
-    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-o9N1j/W1Zo5RJ1gJ6rtiuZry8hDQh1L+UzbB/6qa5uM=" crossorigin="anonymous"></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    <!-- jQuery and Bootstrap -->
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <!-- JavaScript to initialize the map and load camera data -->
+  <script>
+    // Initialize the map at a default location
+    const map = L.map('map').setView([39.2773, -77.3236], 10);
 
-    <!-- ✅ Custom Script -->
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            // ✅ Initialize map after DOM is ready
-            const map = L.map('map').setView([39.3, -77.4], 10);
+    // Add OpenStreetMap tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 18,
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
-
-            // ✅ Fetch camera data from data.xml
-            fetch('data.xml')
-                .then(response => response.text())
-                .then(xmlString => {
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
-                    const videos = xmlDoc.getElementsByTagName('Video');
-
-                    for (let i = 0; i < videos.length; i++) {
-                        const lat = parseFloat(videos[i].getElementsByTagName('lat')[0].textContent);
-                        const lon = parseFloat(videos[i].getElementsByTagName('lon')[0].textContent);
-                        const videoURL = videos[i].getElementsByTagName('publicVideoURL')[0].textContent;
-                        const description = videos[i].getElementsByTagName('description')[0].textContent;
-
-                        const marker = L.marker([lat, lon]).addTo(map);
-                        marker.bindPopup(`<b>${description}</b><br><a href="${videoURL}" target="_blank">View Live Feed</a>`);
-                    }
-                })
-                .catch(err => {
-                    console.error('Failed to load data.xml:', err);
-                });
+    // Load camera data from data.json
+    fetch('data.json')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("Failed to load camera data");
+        }
+        return response.json();
+      })
+      .then(cameraData => {
+        cameraData.data.forEach(camera => {
+          if (camera.lat && camera.lon) {
+            const marker = L.marker([camera.lat, camera.lon]).addTo(map);
+            marker.bindPopup(`
+              <strong>${camera.name}</strong><br>
+              <iframe src="${camera.publicVideoURL}" allowfullscreen></iframe>
+            `);
+          }
         });
-    </script>
+      })
+      .catch(error => {
+        console.error("Error loading camera data:", error);
+      });
+  </script>
 </body>
-
 </html>
-
-
